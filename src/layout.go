@@ -136,7 +136,16 @@ func (c *Ctx) render(list []*Entry, gtitcnt int) {
 		for j, n := 0, i; n < llen; j, n = j+1, n+rows {
 			e := ll[n]
 			w := wxl[j]
-			hasnextcol := n+rows < llen
+			// a nil is a placeholder inserted by bump() to push a group
+			// title out of the bottom cell; trailing placeholders must not
+			// leave spaces at the end of the line
+			hasnextcol := false
+			for m := n + rows; m < llen; m += rows {
+				if ll[m] != nil {
+					hasnextcol = true
+					break
+				}
+			}
 			gap := 0
 			if e == nil {
 				gap = w - c.colSep()

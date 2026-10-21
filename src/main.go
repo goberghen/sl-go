@@ -22,41 +22,46 @@ import (
 )
 
 type Options struct {
-	Ignore         int   // entries whose ignore level is <= this are hidden (--all sets 0)
-	Only           bool  // show only entries that carry some signal
-	Atime          int64 // absolute "read recently" window in seconds
-	One            bool  // one entry per line
-	Width          int   // override the terminal width
-	Log            bool  // explain what the layout code did
-	Color          int   // -1 auto, 0 off, 1 on
-	Summary        int   // print the summary line when at least this many entries
-	Group          bool  // group by kind
-	GroupTitle     bool  // print group titles
-	Series         int   // collapse runs of at least this many numbered names
-	Prefix         int   // elide common prefixes of at least this length
-	Shorten        int   // start shortening names when there are at least this many
-	RelSize        int   // percent of entries to mark as "relatively large"
-	RelChange      int   // percent of entries to mark as "relatively recent"
-	RelRead        int   // percent of entries to mark as "relatively accessed"
-	AbsChange      int64 // absolute "modified recently" window in seconds
-	Expando        int   // auto-expand a directory with this few files
-	Notable        bool  // highlight README/TODO/Makefile/...
-	Title          bool  // show prettified names
-	NoSfx          bool  // drop suffixes for media groups when --title is on
-	F              bool  // append "/" "->" "_" type markers
-	MaxCol         bool  // never trade a column for a row
-	InlineOne      bool  // show "src/main.c" instead of "src/1" for a directory with one entry
-	OwnerNotes     bool  // in $HOME, name the owner of files that are not yours
-	GroupMix       bool  // show "5+3" instead of "8" on a directory classified by content
-	LegacyClassify bool  // Tcl rule: a content entry with no suffix counts as a directory
-	LegacySeries   bool  // Tcl rule: names differing in any one digit or letter are a series
-	ColSep         int   // minimal gap between columns (COLSEP, default 1)
-	NameMin        int   // width that still allows two columns (NAMEMIN, default 40)
-	Base           int   // 1024 or 1000 (K, the size divisor)
-	Ellipsis       string
-	Mounts         []string
-	Autosearch     string
-	Rules          []string // --rule / "rule =" : "RE -> GROUP", in order
+	Ignore         int    // entries whose ignore level is <= this are hidden (--all sets 0)
+	Only           bool   // show only entries that carry some signal
+	Atime          int64  // absolute "read recently" window in seconds
+	One            bool   // one entry per line
+	Width          int    // override the terminal width
+	Log            bool   // explain what the layout code did
+	Color          int    // -1 auto, 0 off, 1 on
+	Summary        int    // print the summary line when at least this many entries
+	Group          bool   // group by kind
+	GroupTitle     bool   // print group titles
+	Series         int    // collapse runs of at least this many numbered names
+	SortMode       string // order inside a group: name (default), size, time, atime
+	Prefix         int    // elide common prefixes of at least this length
+	Shorten        int    // start shortening names when there are at least this many
+	RelSize        int    // percent of entries to mark as "relatively large"
+	RelChange      int    // percent of entries to mark as "relatively recent"
+	RelRead        int    // percent of entries to mark as "relatively accessed"
+	AbsChange      int64  // absolute "modified recently" window in seconds
+	Expando        int    // auto-expand a directory with this few files
+	Notable        bool   // highlight README/TODO/Makefile/...
+	Title          bool   // show prettified names
+	NoSfx          bool   // drop suffixes for media groups when --title is on
+	F              bool   // append "/" "->" "_" type markers
+	MaxCol         bool   // never trade a column for a row
+	InlineOne      bool   // show "src/main.c" instead of "src/1" for a directory with one entry
+	OwnerNotes     bool   // in $HOME, name the owner of files that are not yours
+	GroupMix       bool   // show "5+3" instead of "8" on a directory classified by content
+	LegacyClassify bool   // Tcl rule: a content entry with no suffix counts as a directory
+	LegacySeries   bool   // Tcl rule: names differing in any one digit or letter are a series
+	ColSep         int    // minimal gap between columns (COLSEP, default 1)
+	NameMin        int    // width that still allows two columns (NAMEMIN, default 40)
+	Base           int    // 1024 or 1000 (K, the size divisor)
+
+	// relSizeSet records that --relsize (or relsize in the config file) was
+	// given explicitly, so that --sort size may imply 100 only when it was not.
+	relSizeSet bool
+	Ellipsis   string
+	Mounts     []string
+	Autosearch string
+	Rules      []string // --rule / "rule =" : "RE -> GROUP", in order
 
 	// external hooks, replacing the original's Tcl callbacks
 	Annotate      string // shell command run per entry; its output is appended
@@ -75,6 +80,7 @@ func defaultOptions() *Options {
 		Group:      true,
 		GroupTitle: true,
 		Series:     5,
+		SortMode:   "name",
 		Shorten:    10,
 		RelSize:    5,
 		RelChange:  10,
@@ -90,6 +96,19 @@ func defaultOptions() *Options {
 		Ellipsis:   "...",
 		Mounts:     []string{"/Volumes", "/run/media", "/media", "/mnt"},
 		Autosearch: `(?i)\W(urgent|password|pw|live)\W`,
+	}
+}
+
+// applyImplications fills in the defaults that one option implies for another.
+// It runs after the command line and the config file are both read, so that an
+// explicit setting always wins.
+func applyImplications(o *Options) {
+	// --sort size is useless unless the sizes are all visible: with the default
+	// --relsize 5 only the top 5% carry a number, and the order then looks
+	// random. An explicit --relsize, and -o (which means "only what stands out"
+	// and clears relsize), both win over this.
+	if o.SortMode == "size" && !o.relSizeSet && !o.Only && o.RelSize == 5 {
+		o.RelSize = 100
 	}
 }
 
@@ -144,6 +163,7 @@ func main() {
 		}
 	}
 	applyEnvColors()
+	applyImplications(opts)
 
 	w := bufio.NewWriter(os.Stdout)
 	defer w.Flush()

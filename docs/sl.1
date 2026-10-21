@@ -164,23 +164,108 @@ The original script had this branch disabled
 .RB ( "elseif {0 && $size==1}" );
 it is available here, off by default, because long names can upset the columns.
 .TP
+.BI \-\-sort " KEY"
+Order the entries inside each group. The keys are
+.BR name " (the default: dictionary order), " size ", " time " (modification time) and " atime
+(access time). The largest entry comes first for
+.BR size ,
+the most recently modified one for
+.BR time ,
+the most recently read one for
+.BR atime .
+.PP
+.RS 4
+.EX
+  other                  other                 other
+   draft.md 293K          todo.md               notes.md
+   readme.md 88K          readme.md             todo.md
+   notes.md               notes.md              readme.md
+   todo.md                draft.md              draft.md
+  \-\-sort size           \-\-sort time          \-\-sort atime
+.EE
+.RE
+.PP
+Four rules make the result mean something:
+.IP \(bu 2
+.B \-\-sort size
+turns on
+.B \-\-relsize 100
+by itself, because with the default 5% only the largest few entries carry a
+number and the order then looks random. An explicit
+.B \-\-relsize
+wins, and so does
+.BR \-o ,
+which switches size marks off on purpose.
+.IP \(bu
+Directories keep name order under
+.BR \-\-sort size .
+The size of a directory here is the number of entries in it, not the number of
+bytes below it, so sorting by it would claim that a folder of many small files
+outweighs a single large video. Sort them by
+.B time
+if you want them ordered by anything at all.
+.IP \(bu
+.B \-\-prefix
+is off for every order except
+.BR name :
+a shared prefix is elided against the entry above, and after a sort that
+neighbour is somebody else, so the shown names would lose a prefix that the
+first one no longer displays.
+.IP \(bu
+Grouping is untouched: a sort reorders entries inside a group and never moves
+one to another group.
+.BR \-\-series
+collapsing also happens first, on name order, and a collapsed run keeps the
+place it was given.
+.PP
+With
+.B \-\-nogroup
+there is only one list, so the directories go first in name order and everything
+else follows by the key.
+.TP
 .B \-\-nogroup
 One flat list sorted by name, without group titles.
 .TP
 .BI \-\-ellipsis " S"
 Text inserted where a name was cut (default
 .RB \(dq...\(dq).
+It only matters when names are actually being cut, which is
+.BR \-\-shorten \'s
+decision, not its own: pick a single character
+.RB ( \(dq~\(dq ", " \(dq»\(dq )
+when the terminal is narrow and every column counts.
+See
+.B CUTTING NAMES
+below for what happens before the ellipsis is used.
 .SS Thresholds
 .TP
 .BI \-\-relsize " N"
 Mark the top
 .I N
 percent of entries by size (default 5, 0 disables).
+The mark is the size itself
+.RB ( "4.2M" ),
+and it is relative to this directory: in a directory of ten files the single
+largest one is marked at the default setting, in a directory of two thousand
+the top hundred are. Set
+.B \-\-relsize 100
+to show the size of every entry, smallest included; note that
+.B \-\-sort size
+does this for you (see
+.BR \-\-sort ).
+Below 100 the cutoff is clamped to the median, so a directory in which everything
+is nearly the same size produces no size marks at all: that is the original's
+rule, kept because otherwise \[lq]all created a minute apart\[rq] would light up.
 .TP
 .BI \-\-relchange " N"
 Mark the top
 .I N
 percent by modification time (default 10, 0 disables).
+The mark reads
+.B <2h
+or
+.BR <90d :
+it means \*qchanged that recently\*q, not \*qchanged at that time\*q.
 .TP
 .BI \-\-relread " N"
 Mark the top
@@ -189,6 +274,12 @@ percent by access time (default 10, 0 disables; set 0 on file systems mounted
 with
 .B noatime
 or on macOS, where Spotlight makes every access time recent).
+The mark reads
+.BR \-5m .
+Because a listing itself updates the access time of the directories it reads,
+this is about files, and on Linux the
+.B relatime
+mount option is enough to make it useful.
 .TP
 .BI \-\-atime " N" ", \-\-age " N"
 Additionally mark files read within the last
@@ -202,11 +293,47 @@ is the one used on the original web page; the Tcl script called it
 Collapse a run of at least
 .I N
 numbered names (default 5, 0 disables).
+A run is three or more names that are identical except for one run of digits or
+one index letter, and that are adjacent after sorting:
+.PP
+.RS 4
+.EX
+  video
+  episode 01.mkv <2020 1000...8
+.EE
+.RE
+.PP
+The line above is eight files; the number after the dots is how many were
+collapsed, and the size, when shown, is that of the first of them.
+.PP
+There is one inherited exception, and it surprises people: a run is
+.B not
+collapsed when its entries carry a mark of their own (a size, a
+.BR <2h ,
+a warning). This is the Tcl original\'s rule, kept on purpose \- the mark is the
+reason the file was worth pointing out \- but it means a directory of
+identical-looking fresh zero-byte files shows every name.
+.B \-\-series 0
+turns collapsing off entirely.
 .TP
 .BI \-\-prefix " N"
 Elide a common prefix of at least
 .I N
 characters (default 0, i.e. off; 3 is what the author recommended).
+The prefix is replaced by spaces, so the names still line up under each other
+and only the differing tails remain:
+.PP
+.RS 4
+.EX
+  myproject-plan.txt <NOW
+           -todo.txt <NOW
+.EE
+.RE
+.PP
+Two details that decide whether it fires at all: the entries must be adjacent
+in the listing (so it works inside a group, not across groups), and it runs only
+in the groups where file names share structure \- directories, documents,
+images, audio, video, fonts, archives.
 .TP
 .BI \-\-summary " N"
 Print the summary line when at least
@@ -217,6 +344,38 @@ entries are shown (default 2, 0 disables).
 After listing, also list the single subdirectory if the directory holds at most
 .I N
 files (default 2, 0 disables).
+.PP
+This is not recursion. It unfolds a \*qsingle-child chain\*q: a directory that
+holds a couple of files and exactly one subdirectory, which itself holds one
+subdirectory, and so on \- the shape of
+.BR project/project-1.0/src ,
+where three levels hold nothing but the way down. Every level is listed with
+its own grouping, marks and summary:
+.PP
+.RS 4
+.EX
+  build          dev
+  README <NOW     src/3 <NOW
+  1 file (2B), 1 directory (3 files)
+
+autoexpand src/:
+  deep/1 <NOW    dev                util.c <NOW
+                  main.c 2B <NOW
+  2 files (4B), 1 directory (1 file)
+
+autoexpand deep/:
+  dev
+   a.c 2B <NOW
+.EE
+.RE
+.PP
+As soon as a level holds a second subdirectory, or more than
+.I N
+files, the unfolding stops there. There is no depth flag and no breadth-first
+walk; a listing of a whole tree is a different feature and is not implemented.
+Use
+.B \-\-expando 0
+to turn it off.
 .SS Colours and layout
 .TP
 .BR \-c ", " \-\-color "[=\fIWHEN\fR]"
@@ -509,6 +668,65 @@ or for a single index letter that ends the stem
 .RB ( part\ a ", " part\ b ).
 .SH NOTATION
 Each entry is a cell: an optional indent, the name, then zero or more marks.
+Marks come in a fixed order and always immediately after the name (a link keeps
+its arrow first):
+.PP
+.RS 4
+.EX
+  Makefile <-W<90d     hard link, world-writable, changed 90 days ago
+  empty.txt0           empty file
+  src/2                a directory holding two files
+  broken-link->X       a symbolic link that goes nowhere
+  4.2M                 relatively large: the size is the mark
+  chapter1.txt...6     six names collapsed into one (see \-\-series)
+.EE
+.RE
+.PP
+A listing is a grid, and a grid fills downwards: the first column is read from
+the top to the bottom, then the second one, and so on. That is the order the
+entries are in, so a sorted listing reads down a column and never across a line.
+Push it into one column with
+.B \-1
+if the order matters more than the shape:
+.PP
+.RS 4
+.EX
+  aaa/1        image        a.png 195K    other           readme.md 88K    todo.md
+  zzz/5         c.png 586K   b.png         draft.md 293K   notes.md
+.EE
+.RE
+.PP
+read down: aaa, zzz, image, c.png, a.png, b.png, other, draft.md, readme.md,
+notes.md, todo.md. Reading the same grid left to right would mix the groups up.
+.PP
+The marks answer three different questions, and it helps to know which one you
+are looking at:
+.TP
+.B type
+.BR / " (directory), " \-> " (link), " *
+(executable), and the group title above the names.
+.TP
+.B anomaly
+something to look at or clean up:
+.B 0
+(empty),
+.B X
+(broken),
+.B <-
+(another name points at this file),
+.BR u " / " g " / " s
+(odd permission bits),
+.BR W
+(world-writable),
+.B r
+(not readable),
+.B x
+(directory not searchable).
+.TP
+.B relative
+something that stands out in \fIthis\fR directory:
+.BR 4.2M ", " <2h ", " \-5m .
+These are percentages, not absolutes, and they change as the directory does.
 .TP
 .B /
 directory
@@ -566,6 +784,41 @@ relatively large
 .TP
 .B ...7
 seven consecutive names were collapsed into this line
+.SH "CUTTING NAMES"
+Names are cut only when cutting buys something: when the listing still has to
+fit a column budget. That is
+.BR \-\-shorten \'s
+job (default: from 10 entries on), and it works in three steps, cheapest first,
+stopping as soon as the name fits:
+.PP
+.RS 4
+.nf
+1. articles are dropped   the, a, an
+2. prepositions become /  of, from, for, in, to, and, volume, vol
+3. the middle is elided, keeping the head, the number and the tail
+.fi
+.RE
+.PP
+So a long name is not simply truncated \- it is first rewritten, and
+.B the
+.I shown
+name may therefore differ from the real one:
+.PP
+.RS 4
+.EX
+The Making of a Documentary about the Sea volume 001 of the series.txt
+Making/Documentary about Sea/001/series.txt
+.EE
+.RE
+.PP
+That is the Tcl original\'s behaviour, kept because it really does fit long
+library names into a column, but it is worth knowing about before you type a
+name from the screen.
+.B \-\-shorten 0
+turns all three steps off and shows names exactly as they are on disk, at the
+cost of width.
+.B \-\-ellipsis
+changes only the text of step 3.
 .SH GROUPS
 In order of appearance:
 .BR dir ,
@@ -705,45 +958,340 @@ Terminal width to assume when standard output is not a terminal.
 Configuration root; the file is read from
 .IR $XDG_CONFIG_HOME/sl/config .
 .SH EXAMPLES
-List the current directory:
+The output below is real: it comes from running these commands on the directory
+this snippet builds.
 .PP
 .RS 4
 .EX
-sl
+mkdir demo && cd demo && mkdir season1
+printf 'int main(void){return 0;}\n' > main.c
+printf 'int util(void){return 1;}\n' > util.c
+touch main.o
+head -c 40000 /dev/urandom > cover.png
+for i in 1 2 3; do head -c 900000 /dev/urandom > "track 0$i.mp3"; done
+for i in 1 2 3 4 5 6; do echo x > "chapter$i.txt"; done
+for i in 1 2 3 4 5 6 7 8; do head -c 250000 /dev/urandom > "season1/episode 0$i.mkv"; done
+echo '# readme' > README.md; echo 'all:' > Makefile
+: > empty.txt; ln -s missing-target broken-link; mkdir world; chmod 777 world
+echo x > .hidden
+touch -d 2020-01-01 chapter*.txt
+.EE
+.RE
+.SS "What is in here"
+.PP
+.RS 4
+.EX
+$ sl --width 100
+  world/0W <NOW    doc                 audio                      other
+  build            chapter1.txt...6     track 01.mp3 879K <NOW    README.md <NOW
+  Makefile <NOW    empty.txt0 <NOW     track 02.mp3 <NOW          broken-link->X <NOW
+  dev              image               track 03.mp3 <NOW
+  main.c <NOW      cover.png <NOW      video
+  util.c <NOW                          season1/8 <NOW
+  15 files (2.6M) + 1 .dotfile + 1 ignored, 2 directories (8 files)
 .EE
 .RE
 .PP
-See only what changed in a big source tree, with a note on each C file:
+Two source files in
+.BR dev ,
+six chapters collapsed into one line, three tracks in
+.BR audio ,
+the episode directory named
+.B season1
+with a count of eight, an empty file
+.RB ( 0 ),
+a broken link
+.RB ( \-> X ),
+a world-writable directory
+.RB ( W ),
+one 879K track marked as relatively large, and the ignored object file and the
+dotfile counted in the summary but not shown.
+.SS "The things that are usually hidden"
 .PP
 .RS 4
 .EX
-sl \-\-only \-\-annotate 'git log \-1 \-\-format=%cr' \-\-annotate-match '\e.c$'
+$ sl -a --width 100 | tail -4
+  dev              empty.txt0 <NOW     track 03.mp3 <NOW          dotfile
+  main.c <NOW      image               video                      .hidden <NOW
+  main.o0 <NOW     cover.png <NOW      season1/8 <NOW
+  17 files (2.6M), 2 directories (8 files)
+
+$ sl --ignore 2 --width 100 | tail -3
+  main.c <NOW      image               video
+  main.o0 <NOW     cover.png <NOW      season1/8 <NOW
+  16 files (2.6M) + 1 .dotfile, 2 directories (8 files)
 .EE
 .RE
 .PP
-See an Apple II collection the way it was meant to be seen:
+Level 3 (the default) hides both;
+.B \\-\\-ignore 2
+brings back the object file, level 1 also the dotfile, level 0 is
+.BR \\-a .
+.SS "Only what stands out"
 .PP
 .RS 4
 .EX
-sl \-a \-\-title \-\-prefix 3 ~/disks/apple2
+$ sl -o --width 100
+  world/0W <NOW    util.c <NOW        audio                video
+  build            doc                track 01.mp3 <NOW    season1/8 <NOW
+  Makefile <NOW    empty.txt0 <NOW    track 02.mp3 <NOW    other
+  dev              image              track 03.mp3 <NOW    README.md <NOW
+  main.c <NOW      cover.png <NOW
+.EE
+.RE
+.SS "Series, and why they sometimes do not collapse"
+Fresh files carry
+.B <NOW
+marks, and a marked run is left alone \\- this is the original\\'s rule:
+.PP
+.RS 4
+.EX
+$ sl season1
+  video                        episode 03.mkv <NOW    episode 06.mkv <NOW
+   episode 01.mkv 244K <NOW    episode 04.mkv <NOW    episode 07.mkv <NOW
+  episode 02.mkv <NOW          episode 05.mkv <NOW    episode 08.mkv <NOW
+  8 files (1.9M)
 .EE
 .RE
 .PP
-Show what a directory really contains, including the normally hidden headers,
-with a fixed width for a screenshot:
+Let the clock move on (here: give the files an old timestamp) and the same eight
+names become one line:
 .PP
 .RS 4
 .EX
-sl \-\-ignore 2 \-\-width 100 \-\-color /usr/include
+$ touch -d 2020-01-01 season1/*
+$ sl season1
+  video
+   episode 01.mkv 244K <2020...8
+  8 files (1.9M)
 .EE
 .RE
 .PP
-See a directory the way the author of the original recommended (that is the
-configuration from his example startup file):
+.B \\-\\-series 0
+shows every name:
 .PP
 .RS 4
 .EX
-sl \-\-title \-\-nosfx \-\-prefix 3 \-\-k1000
+$ sl --series 0 season1
+  video                        episode 02.mkv   episode 04.mkv   episode 06.mkv   episode 08.mkv
+   episode 01.mkv 244K <2020   episode 03.mkv   episode 05.mkv   episode 07.mkv
+  8 files (1.9M)
+.EE
+.RE
+.SS "Shared prefixes"
+.PP
+.RS 4
+.EX
+$ sl --one --prefix 4
+  dev
+   myproject-notes.txt 2B <NOW
+  doc
+  myproject-plan.txt <NOW
+           -todo.txt <NOW
+  other.txt <NOW
+.EE
+.RE
+.PP
+The prefix is replaced by spaces, so the column still lines up and only the
+differing tails are read. It can also elide more than you expect \\- with
+.B "track 01.mp3"
+and
+.B "track 02.mp3"
+in one group, the shared
+.B "track 0"
+goes and the names read
+.B 01.mp3
+and
+.BR 02.mp3 .
+.SS "Cutting long names"
+With ten or more names in a group and room for two columns, names are rewritten
+before they are cut: articles are dropped, prepositions become a slash.
+.PP
+.RS 4
+.EX
+$ sl --width 120
+  doc                                                          Making/Documentary about Sea/007/series.txt0 <54s
+    Making/Documentary about Sea/001/series.txt0 0B <54s       Making/Documentary about Sea/008/series.txt0 <54s
+
+$ sl --width 120 --shorten 0 | head -2
+  doc
+   The Making of a Documentary about the Sea volume 001 of the series.txt0 0B <54s
+.EE
+.RE
+.PP
+Same files, a narrower terminal, so the middle of each name is elided as well
+and
+.B \\-\\-ellipsis
+picks the character:
+.PP
+.RS 4
+.EX
+$ sl --width 100 --ellipsis '»'
+  doc                                                Making/Documentary about Sea/00»ries.txt0 <54s
+    Making/Documentary about Se»ries.txt0 0B <54s    Making/Documentary about Sea/00»ries.txt0 <54s
+.EE
+.RE
+.SS "Sorting by size and by time"
+Four notes and three images, with the sizes and the timestamps deliberately
+different:
+.PP
+.RS 4
+.EX
+$ sl \-\-one \-\-sort size .
+   aaa/1 <NOW
+   zzz/5 <NOW
+  image
+   c.png 586K
+-> a.png 195K -2y
+   b.png 29K
+  other
+   draft.md 293K
+   readme.md 88K
+   notes.md 4.9K
+   todo.md 1B
+  7 files (1.2M), 2 directories (6 files)
+.EE
+.RE
+.PP
+Every size is shown although
+.B \-\-relsize
+was not given: that is the implication of
+.BR \-\-sort size .
+The two directories are still in name order, even though
+.B zzz
+holds five entries and
+.B aaa
+one, because their size is a count and not a weight. The same directory sorted
+by modification time:
+.PP
+.RS 4
+.EX
+$ sl \-\-one \-\-sort time .
+  aaa/1 <NOW
+  zzz/5 <NOW
+  image
+   c.png 586K
+  b.png
+->a.png \-2y
+  other
+  todo.md
+  readme.md
+  notes.md
+  draft.md
+  7 files (1.2M), 2 directories (6 files)
+.EE
+.RE
+.PP
+and by access time, which is a different order again:
+.PP
+.RS 4
+.EX
+$ sl \-\-one \-\-sort atime .
+  aaa/1 <NOW
+  zzz/5 <NOW
+  image
+->a.png \-2y
+   c.png 586K
+  b.png
+  other
+  notes.md
+  todo.md
+  readme.md
+  draft.md
+  7 files (1.2M), 2 directories (6 files)
+.EE
+.RE
+.PP
+In a grid the same order has to be read downwards, column by column:
+.PP
+.RS 4
+.EX
+$ sl \-\-width 100 \-\-sort size .
+   aaa/1 <NOW    image        -> a.png 195K -2y    other              readme.md 88K     todo.md 1B
+   zzz/5 <NOW     c.png 586K     b.png 29K          draft.md 293K     notes.md 4.9K
+  7 files (1.2M), 2 directories (6 files)
+.EE
+.RE
+.PP
+Read the first column top to bottom (
+.BR aaa ,
+.BR zzz ),
+then the second (
+.BR image ,
+.BR "c.png 586K" ),
+then the third, and so on: the sizes keep falling, 586K, 195K, 29K, 293K, 88K,
+4.9K, 1B.
+Use
+.B \-1
+when the order is the point.
+.SS "A single-child chain"
+.B \\-\\-expando
+is not recursion: it unfolds
+.BR project/project-1.0/src
+style chains.
+.PP
+.RS 4
+.EX
+$ sl --expando 0 project
+  build          dev
+  README <NOW     src/3 <NOW
+  1 file (2B), 1 directory (3 files)
+
+$ sl project
+  build          dev
+  README <NOW     src/3 <NOW
+  1 file (2B), 1 directory (3 files)
+
+autoexpand src/:
+  deep/1 <NOW    dev                util.c <NOW
+                  main.c 2B <NOW
+  2 files (4B), 1 directory (1 file)
+
+autoexpand deep/:
+  dev
+   a.c 2B <NOW
+.EE
+.RE
+.SS "Your own marks: the column eza has for git"
+The command runs in the directory being listed, with the entry\\'s path as $1
+and its name as $2; its first line is used, cut to 24 characters. The trailing
+time mark below depends on the clock.
+.PP
+.RS 4
+.EX
+$ sl --annotate 'git status --porcelain -- "$1" | head -1'
+  doc                        tracked.txtM tracked.txt 8B <24s
+  new.txt?? new.txt <24s
+  2 files (12B) + 1 .dotfile
+.EE
+.RE
+.PP
+One process per entry is fine for a handful of names. For a directory use
+.BR \\-\\-annotate-batch :
+it receives every path on standard input and must answer with one line per path.
+.PP
+.RS 4
+.EX
+$ sl --annotate-batch 'while IFS= read -r p; do
+      if [ -f "$p" ]; then echo "$(stat -c%s "$p")b"; else echo dir; fi
+  done'
+  world/0W dir <19s    empty.txt0 0b <19s
+  build                image
+  Makefile 5b <19s     cover.png 40000b <19s
+  dev                  audio
+  main.c 26b <19s       track 01.mp3 900000b 879K <19s
+  util.c 26b <19s      track 02.mp3 900000b <19s
+.EE
+.RE
+.SS "Other things worth knowing"
+.PP
+.RS 4
+.EX
+$ sl --rule '\.bak$ -> archive' --rule '(?i)^(notes|todo)'   # force groups
+$ sl --autosearch '(?i)key|password' ~/Downloads             # highlight matches
+$ sl --relchange 50 --relsize 20 --width 100                 # mark more than usual
+$ sl --no-config --k1000                                     # ignore the config, decimal units
+$ sl --title --nosfx                                         # prettify names, drop suffixes
 .EE
 .RE
 .SH "EXIT STATUS"

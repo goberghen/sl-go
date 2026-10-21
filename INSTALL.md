@@ -541,16 +541,53 @@ conversion is now explicit (`int64(st.Mtim.Sec)`) in `stat_linux.go` and in
 Build artifacts live in `release/` inside the source tree, and nowhere else:
 
 ```text
-release/bin/sl-linux-amd64      the host build (all twelve after `make all`)
-release/sl-go-1.1.4.tar.gz     sources, refreshed by every `make` / `make dist`
+release/bin/sl-linux-amd64        the host build (all twelve after `make all`)
+release/sl-go-1.1.4.tar.gz       sources, refreshed by every `make` / `make dist`
+release/sl-binaries-1.1.4.tar.gz all twelve binaries + checksums + man + completions
 release/sl-go_1.1.4-1_amd64.deb
+release/packaging/               distribution recipes with checksums filled in
 ```
 
 That directory is in `.gitignore`, does not exist in a fresh checkout, and
 `make clean` removes it — so the source tree stays clean without the build ever
 writing outside it.
-The archive is reproducible (sorted names, fixed owner and timestamp) and unpacks to
-`sl-go-1.1.4/`, where a plain `make` builds and `make test` passes.
+The archives are reproducible (sorted names, fixed owner and timestamp) and unpack
+to `sl-go-1.1.4/`, where a plain `make` builds and `make test` passes.
+
+### 3.10 Handing the binaries to somebody else
+
+Twelve files named `sl-<os>-<arch>` are convenient to run and awkward to pass
+around, so `make bundle` (also run by `make packages`) packs them into one
+archive:
+
+```sh
+make bundle
+# -> release/sl-binaries-1.1.4.tar.gz
+tar tzf release/sl-binaries-1.1.4.tar.gz
+#   sl-binaries-1.1.4/README.txt
+#   sl-binaries-1.1.4/SHA256SUMS
+#   sl-binaries-1.1.4/bin/sl-linux-amd64        (all twelve)
+#   sl-binaries-1.1.4/share/man/man1/sl.1
+#   sl-binaries-1.1.4/share/completions/{_sl,sl.bash,sl.fish}
+```
+
+`README.txt` inside says what the thing is, installs with one `install` line,
+and lists each binary with its format, machine and linkage — including the fact
+that the OpenBSD and macOS builds are dynamic and the rest are static.
+
+Checking it is the same two commands as always, because `SHA256SUMS` inside is
+relative to the archive root:
+
+```sh
+tar xzf sl-binaries-1.1.4.tar.gz && cd sl-binaries-1.1.4
+sha256sum -c SHA256SUMS        # 12/12 OK
+./bin/sl-linux-amd64 --version
+```
+
+The archive is reproducible in the same way as the source tarball (sorted names,
+owner 0:0, fixed mtime, `gzip -n`): two runs on the same binaries give the same
+file, so its checksum can be published. The binaries inside are byte-identical
+to `release/bin/`, so `make check-binaries` still applies to them.
 
 ---
 
@@ -615,7 +652,7 @@ style.change = 01;31
 group.doc.extra = .md .rst
 ```
 
-Useful keys: `ignore`, `title`, `nosfx`, `prefix`, `series`, `summary`,
+Useful keys: `ignore`, `title`, `nosfx`, `prefix`, `series`, `sort`, `summary`,
 `expando`, `relsize`, `relchange`, `relread`, `atime`, `k` (1000 or 1024),
 `colsep`, `namemin`, `ellipsis`, `color`, `mounts`, `autosearch`, `notable`,
 `inline-singleton`, `owner-notes`, `group-mix`, `legacy-classify`,
@@ -770,6 +807,11 @@ you pressed `q` in a pager. Not applicable here.
 * `--inline-singleton` implements the branch the original left disabled
   (`elseif {0 && $size==1}`): a directory with one entry is shown as
   `src/main.c` instead of `src/1`;
+* `--sort name|size|time|atime` orders entries inside a group; the original
+  always printed name order. `--sort size` turns on `--relsize 100` by itself,
+  keeps directories in name order (their size is a count of entries, not a
+  weight) and switches `--prefix` off, because a shared prefix is elided against
+  the neighbouring entry;
 * the RCS/CVS marks, the Apple resource-fork size fallback and the `touch`-based
   access time hack are not ported.
 

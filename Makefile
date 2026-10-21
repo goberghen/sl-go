@@ -29,7 +29,7 @@ TARBALL := $(OUT)/sl-go-$(VERSION).tar.gz
 SRCFILES := Makefile README.md INSTALL.md LICENSE go.mod .gitignore flake.nix src docs bench packaging \
             completions tools
 
-.PHONY: default all build share test vet bench bench-ab verify check-binaries completions clean install uninstall deb packages man layout dist
+.PHONY: default all build share test vet bench bench-ab verify check-binaries completions clean install uninstall deb packages bundle man layout dist
 
 # `make` = build the binary and refresh the source tarball.
 default: build dist
@@ -121,8 +121,15 @@ deb:
 
 # Stage every distribution recipe (deb, rpm, PKGBUILD, APKBUILD, Homebrew,
 # FreeBSD) with the tarball's checksum into release/packaging/.
-packages:
+packages: bundle
 	@./packaging/make-packages.sh
+
+# bundle puts the twelve finished binaries into one reproducible tarball,
+# release/sl-binaries-<version>.tar.gz, together with their checksums, the man
+# page and the completions. Twelve loose files are convenient to run and
+# awkward to hand over; the archive is what goes to somebody else.
+bundle: share
+	@./packaging/make-bundle.sh
 
 man:
 	@mandoc -Tlint docs/sl.1 2>/dev/null || echo "man: mandoc not installed, skipping lint"

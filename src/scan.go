@@ -335,7 +335,7 @@ func (c *Ctx) buildEntry(dir, name, path string, listed map[string]bool, cnt *co
 	if c.batchAnn != nil {
 		post += c.batchAnn[path]
 	} else {
-		post += c.annotate(path, name)
+		post += c.annotate(dir, path, name)
 	}
 
 	return &Entry{

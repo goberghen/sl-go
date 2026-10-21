@@ -184,6 +184,53 @@ func titleEntry(name string) *Entry {
 }
 
 // order groups, sorts inside groups, collapses series and elided prefixes.
+// sortGroup applies --sort inside one group: largest first for size, newest
+// first for time (mtime) and atime.
+//
+// The dir group keeps name order under --sort size on purpose: a directory's
+// Size is the number of entries in it, not the number of bytes below it, so
+// sorting by it would claim that a folder with many small files outweighs a
+// large video.
+func (c *Ctx) sortGroup(gl []*Entry, gname string) {
+	switch c.opts.SortMode {
+	case "size":
+		if gname == "dir" {
+			return
+		}
+		sort.SliceStable(gl, func(i, j int) bool { return gl[i].Size > gl[j].Size })
+	case "time":
+		sort.SliceStable(gl, func(i, j int) bool { return gl[i].Mtime.After(gl[j].Mtime) })
+	case "atime":
+		sort.SliceStable(gl, func(i, j int) bool { return gl[i].Atime.After(gl[j].Atime) })
+	}
+}
+
+// sortFlat orders a --nogroup listing by the same rule. Directories cannot be
+// ordered by a key that means nothing for them, so they stay together in name
+// order at the front; the rest follows by size or by timestamp.
+func sortFlat(list []*Entry, mode string) []*Entry {
+	var dirs, rest []*Entry
+	for _, e := range list {
+		if e.Group == "dir" {
+			dirs = append(dirs, e)
+		} else {
+			rest = append(rest, e)
+		}
+	}
+	sort.SliceStable(dirs, func(i, j int) bool {
+		return compareDictionary(dirs[i].Sortkey, dirs[j].Sortkey) < 0
+	})
+	switch mode {
+	case "size":
+		sort.SliceStable(rest, func(i, j int) bool { return rest[i].Size > rest[j].Size })
+	case "time":
+		sort.SliceStable(rest, func(i, j int) bool { return rest[i].Mtime.After(rest[j].Mtime) })
+	case "atime":
+		sort.SliceStable(rest, func(i, j int) bool { return rest[i].Atime.After(rest[j].Atime) })
+	}
+	return append(dirs, rest...)
+}
+
 func (c *Ctx) order(list []*Entry) ([]*Entry, int) {
 	ga := map[string][]*Entry{}
 	for _, e := range list {
@@ -228,11 +275,19 @@ func (c *Ctx) order(list []*Entry) ([]*Entry, int) {
 			gl, n = seriesWith(gl, c.opts.LegacySeries)
 			statsSeries += n
 		}
-		if c.opts.Prefix > 0 && g.prefix {
+		// A shared prefix is only elided when the entries keep name order: the
+		// elided text is computed against the neighbour above, so any other
+		// order would leave a name pointing at a prefix that is no longer there.
+		if c.opts.Prefix > 0 && g.prefix && c.opts.SortMode == "name" {
 			var n1, n2 int
 			gl, n1, n2 = prefixElide(gl, c.opts.Prefix)
 			statsPfx, statsPfxCh = statsPfx+n1, statsPfxCh+n2
 		}
+
+		// Sorting comes last on purpose: series collapsing and prefix elision
+		// both work on name order, and a collapsed run is one entry with one
+		// position, not a set of lines that could be spread by a sort.
+		c.sortGroup(gl, gname)
 
 		if c.opts.GroupTitle && gname != lastgroup {
 			out = append(out, titleEntry(gname))
@@ -249,9 +304,13 @@ func (c *Ctx) order(list []*Entry) ([]*Entry, int) {
 		c.logf("prefix %d (%d chars)", statsPfx, statsPfxCh)
 	}
 	if !c.opts.Group {
-		sort.SliceStable(out, func(i, j int) bool {
-			return compareDictionary(out[i].Sortkey, out[j].Sortkey) < 0
-		})
+		if c.opts.SortMode == "name" {
+			sort.SliceStable(out, func(i, j int) bool {
+				return compareDictionary(out[i].Sortkey, out[j].Sortkey) < 0
+			})
+		} else {
+			out = sortFlat(out, c.opts.SortMode)
+		}
 	}
 	return out, gtitcnt
 }

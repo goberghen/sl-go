@@ -41,6 +41,7 @@ _sl() {
         --relsize) return ;;   # a value: bash completes it
         --series) return ;;   # a value: bash completes it
         --shorten) return ;;   # a value: bash completes it
+        --sort) return ;;   # a value: bash completes it
         --startup) return ;;   # a path: bash completes it
         --summary) return ;;   # a value: bash completes it
         --width) return ;;   # a value: bash completes it
@@ -83,7 +84,7 @@ _sl() {
 
     case $cur in
         --*)
-            COMPREPLY=( $(compgen -W "--age --all --annotate --annotate-batch --annotate-match --atime --autosearch --color --colsep --config --ellipsis --expando --experimental --group --group-mix --help --ignore --inline-singleton --k1000 --k1024 --legacy-classify --legacy-series --log --mounts --namemin --no-color --no-config --no-notable --no-owner-notes --nogroup --nosfx --notable --one --only --owner-notes --prefix --relchange --relread --relsize --rule --series --shorten --startup --summary --title --version --width" -- "$cur") )
+            COMPREPLY=( $(compgen -W "--age --all --annotate --annotate-batch --annotate-match --atime --autosearch --color --colsep --config --ellipsis --expando --experimental --group --group-mix --help --ignore --inline-singleton --k1000 --k1024 --legacy-classify --legacy-series --log --mounts --namemin --no-color --no-config --no-notable --no-owner-notes --nogroup --nosfx --notable --one --only --owner-notes --prefix --relchange --relread --relsize --rule --series --shorten --sort --startup --summary --title --version --width" -- "$cur") )
             return ;;
         -*)
             COMPREPLY=( $(compgen -W "-a -c -h -l -1 -o -t -V -w" -- "$cur") )

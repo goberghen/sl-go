@@ -87,6 +87,14 @@ func (c *Ctx) cutoff(vals []int64, pct int, by int64) (int64, bool) {
 	sortDescending(s)
 	max := s[0]
 
+	// 100 means "show every value". Without this the beat below would clamp
+	// the cutoff to the median and hide the smaller half -- which is exactly
+	// what someone asking for 100 does not want, and what --sort size needs:
+	// an order by size is unreadable if half the sizes are missing.
+	if pct >= 100 {
+		return s[len(s)-1] - 1, false
+	}
+
 	cut := (len(s)*pct)/100 + 1
 	if cut > pct {
 		cut = pct

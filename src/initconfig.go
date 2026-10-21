@@ -36,6 +36,7 @@ const configTemplate = `# sl configuration
 
 # ------------------------------------------------------------- what to condense
 # series = 5          # collapse runs of at least N numbered names (0 = off)
+# sort = name         # order inside a group: name, size, time, atime
 # prefix = 0          # elide a common prefix of at least N chars (0 = off)
 # summary = 2         # print the summary line from N entries on (0 = never)
 # expando = 2         # also list the single subdirectory if there are <= N files

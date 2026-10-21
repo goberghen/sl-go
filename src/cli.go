@@ -112,14 +112,33 @@ func init() {
 			apply: boolOpt(func(o *Options, b bool) { o.NoSfx = b })},
 		{long: "width", short: 'w', hasArg: true, arg: "N", help: "assume a terminal N columns wide",
 			apply: intOpt(func(o *Options) *int { return &o.Width })},
-		{long: "prefix", hasArg: true, arg: "N", help: "elide a shared prefix of at least N chars (0 = off)",
+		{long: "prefix", hasArg: true, arg: "N", help: "in a group, elide a shared prefix of at least N chars (0 = off, 3 is the author's choice)",
 			apply: intOpt(func(o *Options) *int { return &o.Prefix })},
-		{long: "series", hasArg: true, arg: "N", help: "collapse runs of at least N numbered names (default 5)",
+		{long: "series", hasArg: true, arg: "N", help: "collapse runs of at least N numbered names (default 5, 0 = off; marked entries never collapse)",
 			apply: intOpt(func(o *Options) *int { return &o.Series })},
+		{long: "sort", hasArg: true, arg: "KEY", help: "order inside each group: name (default), size, time (mtime), atime",
+			apply: func(o *Options, v string) error {
+				switch k := strings.ToLower(strings.TrimSpace(v)); k {
+				case "", "name":
+					o.SortMode = "name"
+				case "size", "time", "atime":
+					o.SortMode = k
+				default:
+					return fmt.Errorf("expected name, size, time or atime, got %q", v)
+				}
+				return nil
+			}},
 		{long: "ignore", hasArg: true, arg: "N", help: "ignore level to show: 3 default, 2 +.h/.o, 1 +dotfiles, 0 all",
 			apply: intOpt(func(o *Options) *int { return &o.Ignore })},
 		{long: "relsize", hasArg: true, arg: "N", help: "percent of entries called \"relatively large\" (0 = off)",
-			apply: intOpt(func(o *Options) *int { return &o.RelSize })},
+			apply: func(o *Options, v string) error {
+				n, err := strconv.Atoi(strings.TrimSpace(v))
+				if err != nil {
+					return fmt.Errorf("expected a number, got %q", v)
+				}
+				o.RelSize, o.relSizeSet = n, true
+				return nil
+			}},
 		{long: "relchange", hasArg: true, arg: "N", help: "percent of entries called \"relatively recent\" (0 = off)",
 			apply: intOpt(func(o *Options) *int { return &o.RelChange })},
 		{long: "relread", hasArg: true, arg: "N", help: "percent of entries called \"relatively read\" (0 = off)",
@@ -130,7 +149,7 @@ func init() {
 			apply: int64Opt(func(o *Options) *int64 { return &o.Atime })},
 		{long: "summary", hasArg: true, arg: "N", help: "print the summary line from N entries on (0 = never)",
 			apply: intOpt(func(o *Options) *int { return &o.Summary })},
-		{long: "expando", hasArg: true, arg: "N", help: "auto-expand a directory with at most N files (0 = off)",
+		{long: "expando", hasArg: true, arg: "N", help: "unfold a single-child chain: list the one subdirectory when there are at most N files (0 = off)",
 			apply: intOpt(func(o *Options) *int { return &o.Expando })},
 		{long: "notable", help: "highlight README/TODO/Makefile/... (default on)",
 			apply: boolOpt(func(o *Options, b bool) { o.Notable = b })},
@@ -150,9 +169,9 @@ func init() {
 			apply: intOpt(func(o *Options) *int { return &o.ColSep })},
 		{long: "namemin", hasArg: true, arg: "N", help: "width that still allows two columns (default 40)",
 			apply: intOpt(func(o *Options) *int { return &o.NameMin })},
-		{long: "shorten", hasArg: true, arg: "N", help: "start shortening names when there are at least N entries",
+		{long: "shorten", hasArg: true, arg: "N", help: "start cutting names when a group holds at least N entries (default 10, 0 = off; longest names are rewritten first)",
 			apply: intOpt(func(o *Options) *int { return &o.Shorten })},
-		{long: "ellipsis", hasArg: true, arg: "S", help: "text used when a name is shortened (default \"...\")",
+		{long: "ellipsis", hasArg: true, arg: "S", help: "text used when a long name is cut by --shorten (default \"...\")",
 			apply: strOpt(func(o *Options) *string { return &o.Ellipsis })},
 		{long: "owner-notes", help: "in the home directory, name the owner of files that are not yours (default on)",
 			apply: boolOpt(func(o *Options, b bool) { o.OwnerNotes = b })},
@@ -415,4 +434,5 @@ ORIGINAL
        In Debian it is packaged as sl-go and installed as /usr/bin/sl; it
        declares Conflicts: sl, so it cannot share a system with the locomotive.
 `, "Warning glyphs:")
+	fmt.Fprintf(w, "       man sl(1) explains what each option does to the output, with examples.\n\n")
 }

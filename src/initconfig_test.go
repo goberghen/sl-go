@@ -202,6 +202,11 @@ func diffOptions(want, got *Options) []string {
 	v, g := reflect.ValueOf(*want), reflect.ValueOf(*got)
 	typ := v.Type()
 	for i := 0; i < v.NumField(); i++ {
+		// an unexported field (relSizeSet) cannot be read through reflect, and
+		// it is bookkeeping rather than a setting, so it is not compared
+		if !v.Field(i).CanInterface() || !g.Field(i).CanInterface() {
+			continue
+		}
 		if !reflect.DeepEqual(v.Field(i).Interface(), g.Field(i).Interface()) {
 			out = append(out, fmt.Sprintf("%s: template %v, default %v",
 				typ.Field(i).Name, g.Field(i).Interface(), v.Field(i).Interface()))

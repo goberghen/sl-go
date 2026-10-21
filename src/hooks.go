@@ -54,7 +54,14 @@ func (c *Ctx) prepareHooks() error {
 }
 
 // annotate runs the hook for one entry and returns the text to append.
-func (c *Ctx) annotate(path, name string) string {
+//
+// The command runs *in the directory being listed*, not in sl's own working
+// directory. That is what makes the useful hooks useful: `git status --
+// "$1"` only means anything inside the repository, and `sl ~/project` from
+// somewhere else must behave like `sl` started in ~/project. This was a bug:
+// the hook inherited sl's cwd, so the git example silently annotated nothing
+// unless the listed directory happened to be the current one.
+func (c *Ctx) annotate(dir, path, name string) string {
 	if c.opts.Annotate == "" {
 		return ""
 	}
@@ -66,6 +73,7 @@ func (c *Ctx) annotate(path, name string) string {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", c.opts.Annotate, "sh", path, name)
+	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil && len(out) == 0 {
 		return ""
@@ -115,6 +123,7 @@ func (c *Ctx) annotateBatch(dir string, paths []string) {
 	// $1 is the directory being listed, so a command can use it without
 	// having to derive it from the paths (which may be relative)
 	cmd := exec.CommandContext(ctx, "sh", "-c", c.opts.AnnotateBatch, "sh", dir)
+	cmd.Dir = dir
 	cmd.Stdin = strings.NewReader(strings.Join(want, "\n") + "\n")
 	var errb strings.Builder
 	cmd.Stderr = &errb

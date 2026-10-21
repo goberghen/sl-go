@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,5 +176,98 @@ func TestInlineSingleton(t *testing.T) {
 	got := render(true)
 	if !strings.Contains(got, "proj/src/main.c") {
 		t.Errorf("with --inline-singleton the lone child should be shown:\n%s", got)
+	}
+}
+
+// TestSeriesWithMarks is the end-to-end counterpart of TestSeriesCollapses:
+// the unit test uses entries without marks, so it could not catch the rule that
+// actually decides whether a run is collapsed in a real listing. A marked entry
+// breaks the run (this is the Tcl original's rule, see --series), so six fresh
+// episodes stay six lines -- until the clock moves on.
+func TestSeriesWithMarks(t *testing.T) {
+	dir := t.TempDir()
+	for i := 1; i <= 6; i++ {
+		name := filepath.Join(dir, "episode 0"+string(rune('0'+i))+".mkv")
+		if err := os.WriteFile(name, bytes.Repeat([]byte("x"), 1000), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list := func() string {
+		var buf bytes.Buffer
+		opts := defaultOptions()
+		opts.Color = 0
+		opts.Expando = 0
+		c := &Ctx{opts: opts, w: bufio.NewWriter(&buf), errw: &buf, width: 100, now: time.Now()}
+		c.list(dir, nil, 0)
+		c.w.Flush()
+		return buf.String()
+	}
+
+	fresh := list()
+	if strings.Contains(fresh, "...") {
+		t.Errorf("fresh files are marked, so the run must not collapse:\n%s", fresh)
+	}
+	for i := 1; i <= 6; i++ {
+		name := fmt.Sprintf("episode 0%d.mkv", i)
+		if !strings.Contains(fresh, name) {
+			t.Errorf("%s missing from the listing:\n%s", name, fresh)
+		}
+	}
+
+	// same files, old timestamps: no relative mark any more, so they collapse
+	old := time.Now().Add(-400 * 24 * time.Hour)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if err := os.Chtimes(filepath.Join(dir, e.Name()), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	aged := list()
+	if !strings.Contains(aged, "episode 01.mkv") || !strings.Contains(aged, "...6") {
+		t.Errorf("old files should collapse into \"episode 01.mkv...6\":\n%s", aged)
+	}
+	if strings.Contains(aged, "episode 02.mkv") {
+		t.Errorf("collapsed run should not list the inner names:\n%s", aged)
+	}
+}
+
+// TestNoTrailingSpaces guards the column filler. bump() inserts nil
+// placeholders to push a group title out of the bottom cell, and a placeholder
+// that lands last in a row used to leave spaces at the end of the line (visible
+// with "cat -A", annoying in pipes). The name list is the one that reproduced
+// it: nine entries in five groups at 80 columns.
+func TestNoTrailingSpaces(t *testing.T) {
+	dir := t.TempDir()
+	spec := map[string]int{
+		"a-7.log": 0, "bb-1.sh": 0, "dddd-8.mkv": 0, "ffffff-2.log": 0,
+		"ccc-0.zip": 0, "bb-6.sh": 10, "google-5.md": 10,
+		"a-4.md": 900000, "data-3.sh": 10,
+	}
+	for n, size := range spec {
+		if err := os.WriteFile(filepath.Join(dir, n), bytes.Repeat([]byte("x"), size), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, only := range []bool{false, true} {
+		for width := 40; width <= 120; width += 2 {
+			var buf bytes.Buffer
+			opts := defaultOptions()
+			opts.Color = 0
+			opts.Only = only
+			opts.Summary = 0
+			c := &Ctx{opts: opts, w: bufio.NewWriter(&buf), errw: &buf, width: width, now: time.Now()}
+			c.list(dir, nil, 0)
+			c.w.Flush()
+			for _, line := range strings.Split(buf.String(), "\n") {
+				if strings.HasSuffix(line, " ") {
+					t.Errorf("width %d, only=%v: trailing space in %q", width, only, line)
+				}
+			}
+		}
 	}
 }
