@@ -1,0 +1,7 @@
+bin/sl
+share/man/man1/sl.1.gz
+share/doc/sl-go/README.md
+share/doc/sl-go/INSTALL.md
+share/bash-completion/completions/sl
+share/zsh/site-functions/_sl
+share/fish/vendor_completions.d/sl.fish

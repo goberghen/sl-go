@@ -1,0 +1,10 @@
+# make bench-ab A=sl-1.1.4(before one stat) B=release/bin/sl N=20
+# wall clock, medians, process start included
+directory                 base       new     delta   runs
+/usr/bin                 9.71ms     8.98ms    -7.5%       20
+/usr/share/doc          13.46ms    12.71ms    -5.6%       20
+/etc                     3.26ms     3.07ms    -5.9%       20
+/usr/include             5.05ms     4.99ms    -1.2%       20
+/usr/lib                 3.92ms     3.85ms    -1.9%       20
+/usr/share/man           5.63ms     5.46ms    -3.1%       20
+/usr/sbin                2.79ms     2.60ms    -6.9%       20

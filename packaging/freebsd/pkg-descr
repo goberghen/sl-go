@@ -1,0 +1,8 @@
+sl groups files by purpose (headers, source code, web pages, documents,
+images, audio, video, fonts, archives, Apple II disk images, ...), marks the
+ones that stand out in the current directory, condenses runs of numbered
+names, and lays the result out in columns that fit the terminal.
+
+A Go port of Thomas A. Phelps' Tcl script sl (2012), whose home page is
+offline; Tcl hooks are replaced by external commands and the startup file by
+a configuration file created on the first run.

@@ -1,0 +1,829 @@
+.\" sl - usefully organize directories and point out interesting files
+.\" Copyright (C) 2026  the sl Go port authors
+.\" Based on the Tcl script by Thomas A. Phelps, Copyright (c) 2011-2012.
+.\" GPL-3.0-or-later. No warranty.
+.TH SL 1 "2026-10-21" "sl 1.1.4" "User Commands"
+.SH NAME
+sl \- usefully organize directories and point out interesting files
+.SH SYNOPSIS
+.B sl
+.RI [ option ...]
+.RI [ file | directory ...]
+.SH DESCRIPTION
+.B sl
+takes the most common use of
+.BR ls (1)
+\(em displaying the files in a directory compactly in several columns \(em and
+makes it substantially more useful.
+.PP
+It does four things that
+.B ls
+does not:
+.TP
+.B Grouping
+Files are sorted by purpose, not by name: headers, source code, web pages,
+documents, books, images, audio, video, fonts, data, archives and Apple II disk
+images each get their own block, in a fixed order. A directory is classified by
+what it contains, so a folder full of
+.B .mp3
+is shown as audio material.
+.TP
+.B Marking
+Entries that stand out from the rest of the directory are marked: relatively
+large, recently changed, recently read, empty, unreadable, world-writable,
+hard-linked, a broken link, odd permission bits, or part of a name series.
+The thresholds are relative \(em \(lqthe biggest files here\(rq, not \(lqbigger
+than 1 MiB\(rq \(em because a directory that is all movies and a directory that
+is all Makefiles have different ideas of \(lqlarge\(rq.
+.TP
+.B Condensing
+Runs of numbered names
+.RB ( frame200 .dng ", " frame201 .dng ", ...)"
+collapse into one line
+.RB ( frame200.dng...342 ),
+and a shared prefix can be elided so that a column of
+.B myproject-notes
+and
+.B myproject-todo
+shows only the differing tails.
+.TP
+.B Layout
+Column widths are computed per column rather than per directory, names are
+shortened in the middle when the screen is narrow (keeping the first characters,
+the number and the suffix), and a group title that would land at the bottom of a
+column is moved to the top of the next one.
+.PP
+.B sl
+is meant for a human looking at a directory. It is not a replacement for
+.BR ls (1)
+in scripts: the output is coloured, adaptive and full of heuristics.
+.SH OPTIONS
+Options are spelled the GNU way: two dashes for a long name
+.RB ( "\-\-width" ),
+one dash for a short one
+.RB ( "-w" ).
+Values may be written as
+.BR "\-\-width=100" ,
+.BR "\-\-width 100" ,
+.BR "-w 100"
+or
+.BR "\-w100" .
+The original Tcl script also accepted long names behind a single dash
+.RB ( "\-width 100" ).
+This port does not: one dash always means a short option, and nothing else.
+A Tcl\-style spelling is rejected with a hint instead of being guessed at,
+so
+.B \-only
+is never silently split into
+.BR \-o " " \-n " " \-l " " \-y :
+.PP
+.RS 4
+sl: unknown option: \-only (did you mean \-\-only?)
+.RE
+.SS Selection
+.TP
+.BR \-a ", " \-\-all
+Show everything, including dotfiles and files that are normally ignored
+(describes the same as
+.BR "\-\-ignore 0" ).
+.TP
+.BI \-\-ignore " N"
+Show entries whose ignore level is at least
+.IR N .
+Level 3 (the default) hides editor and build droppings
+.RB ( .o ", " .pyc ", " CVS ", " TAGS ),
+level 2 also shows C headers
+.RB ( .h ),
+level 1 also shows dotfiles, level 0 shows everything.
+.TP
+.BR \-o ", " \-\-only
+Show only entries that carry some signal: changed, read, warned about, or
+annotated. Useful in a large or familiar directory. This implies
+.BR "\-\-relsize 0 \-\-series 0 \-\-prefix 0 \-\-summary 0"
+and turns
+.B \-\-title
+off, so put it last on the command line if you want those.
+.SS Output
+.TP
+.BR \-1 ", " \-\-one
+One entry per line.
+.TP
+.BR \-w " N" ", " \-\-width " N"
+Assume the terminal is
+.I N
+columns wide instead of asking the terminal.
+.TP
+.BR \-t ", " \-\-title
+Print prettified names: camelCase becomes spaced words, dots, underscores and
+dashes become spaces. The name you see is then not exactly the name you must
+type, which is why this is off by default.
+.TP
+.B \-\-nosfx
+With
+.BR \-\-title ,
+drop the suffix for audio, video, image and font files.
+.TP
+.BR \-\-owner-notes ", " \-\-no-owner-notes
+In your home directory, name the owner of regular files with a single hard link
+that do not belong to you, for example
+.BR owner=root .
+The point is to notice leftovers from
+.BR root ,
+from a container, or from another account inside your own home. It is on by
+default because it costs nothing and says nothing unless there is something to
+say; outside the home directory it never appears. Switch it off with
+.BR \-\-no-owner-notes .
+.TP
+.B \-\-group-mix
+When a directory has been classified by its contents, print how many entries
+actually matched the guess instead of the plain count:
+.B 5+3
+means 5 of 8 entries are images, so the label is a 5-to-3 decision and not a
+unanimous one. Diagnostic; off by default.
+.TP
+.B \-\-experimental
+Convenience alias that turns on
+.B \-\-group-mix
+and
+.B \-\-owner-notes
+together. This is the block of code the original called TAP (the initials of the
+author, Thomas A. Phelps): it was switched on by the existence of
+.IR ~/prj/Multivalent ,
+a directory used purely as a flag meaning \[lq]this is my machine\[rq].
+.TP
+.B \-\-inline-singleton
+Show the lone entry of a directory instead of a count: a directory
+.B src
+that holds only
+.B main.c
+is printed as
+.BR src/main.c
+rather than
+.BR src/1 .
+The original script had this branch disabled
+.RB ( "elseif {0 && $size==1}" );
+it is available here, off by default, because long names can upset the columns.
+.TP
+.B \-\-nogroup
+One flat list sorted by name, without group titles.
+.TP
+.BI \-\-ellipsis " S"
+Text inserted where a name was cut (default
+.RB \(dq...\(dq).
+.SS Thresholds
+.TP
+.BI \-\-relsize " N"
+Mark the top
+.I N
+percent of entries by size (default 5, 0 disables).
+.TP
+.BI \-\-relchange " N"
+Mark the top
+.I N
+percent by modification time (default 10, 0 disables).
+.TP
+.BI \-\-relread " N"
+Mark the top
+.I N
+percent by access time (default 10, 0 disables; set 0 on file systems mounted
+with
+.B noatime
+or on macOS, where Spotlight makes every access time recent).
+.TP
+.BI \-\-atime " N" ", \-\-age " N"
+Additionally mark files read within the last
+.I N
+seconds. The name
+.B \-\-age
+is the one used on the original web page; the Tcl script called it
+.BR \-atime .
+.TP
+.BI \-\-series " N"
+Collapse a run of at least
+.I N
+numbered names (default 5, 0 disables).
+.TP
+.BI \-\-prefix " N"
+Elide a common prefix of at least
+.I N
+characters (default 0, i.e. off; 3 is what the author recommended).
+.TP
+.BI \-\-summary " N"
+Print the summary line when at least
+.I N
+entries are shown (default 2, 0 disables).
+.TP
+.BI \-\-expando " N"
+After listing, also list the single subdirectory if the directory holds at most
+.I N
+files (default 2, 0 disables).
+.SS Colours and layout
+.TP
+.BR \-c ", " \-\-color "[=\fIWHEN\fR]"
+Colour output.
+.I WHEN
+is
+.B auto
+(the default: colour only when standard output is a terminal),
+.B always
+or
+.BR never .
+A bare
+.B \-c
+or
+.B \-\-color
+means
+.BR always .
+The value must be attached with an equals sign
+.RB ( "\-\-color=never" ); a separate word would be indistinguishable from a
+file name.
+.TP
+.B \-\-no-color
+The same as
+.BR \-\-color=never .
+The environment variable
+.B NO_COLOR
+also turns colour off.
+.TP
+.BR \-l ", " \-\-log
+Print the layout decisions that were taken (how many columns were tried, why one
+shape was chosen over another). Intended for debugging, and it is what the Tcl
+version's
+.B \-log
+did.
+.TP
+.BI \-\-colsep " N"
+Minimum gap between columns (default 1).
+.TP
+.BI \-\-namemin " N"
+Width that still leaves room for two columns (default 40).
+.TP
+.B \-\-k1000
+Use 1000, not 1024, as the divisor for the
+.BR K/M/G/T
+suffixes.
+.TP
+.B \-\-k1024
+Use 1024 as the divisor (the default; the counterpart of
+.BR \-\-k1000 ).
+.TP
+.BI \-\-autosearch " RE"
+Highlight, in every name shown, the part that matches the regular expression
+.IR RE .
+The default is the pattern the original used,
+.BR "(?i)\eW(urgent|password|pw|live)\eW" .
+An empty value disables the search. Version 1.1.4 fixed this option: the value
+was validated all along, but the built-in pattern was what actually ran, so
+.B \-\-autosearch
+behaved like an on/off switch; a pattern that does not compile is now an error
+instead of a silent fallback.
+.TP
+.BI \-\-rule " RE -> GROUP"
+Force the group
+.I GROUP
+on every name that matches
+.IR RE .
+Repeatable, first match wins. See
+.B RULES
+below for the syntax and the list of groups.
+.TP
+.B \-\-notable
+Highlight the names worth seeing at a glance (default on).
+.TP
+.B \-\-no-notable
+Turn that highlighting off.
+.TP
+.BI \-\-shorten " N"
+Start shortening names when the listing has at least
+.I N
+entries (default 10, 0 disables).
+.SS Hooks
+.TP
+.BI \-\-annotate " CMD"
+Run
+.I CMD
+through
+.BR sh \-c
+for every listed entry and append the first line of its output to the entry.
+The path is available as
+.B $1
+and the name as
+.BR $2 .
+This replaces the
+.B perfile
+and
+.B vc-*
+hooks of the Tcl version, which required an embedded interpreter.
+.TP
+.BI \-\-annotate-batch " CMD"
+Run
+.I CMD
+once for the whole directory instead of once per entry. The paths are written to
+its standard input, one per line, and it must answer with one line per path; the
+.IR i "-th answer annotates the " i "-th path, after the same trimming as"
+.BR \-\-annotate .
+The directory being listed is passed as
+.BR $1 .
+.PP
+.RS
+This is the cheap way to do what the Tcl version's
+.B perfile
+did, because Tcl called a procedure and a static binary has to start a process.
+On a directory of 1200 files
+.B \-\-annotate
+starts 1200 shells \(em about 1.5 s on the machine this was measured on \(em
+and
+.B \-\-annotate-batch
+starts one, about 31 ms.
+.RE
+.PP
+Two consequences, both inherent. The command has to be a filter (it reads names
+and writes answers) rather than a script that inspects one entry, and a name
+containing a newline cannot be sent at all: such entries are left unannotated.
+Answers are positional, so a command that prints a header, a warning or one
+answer for several paths would shift everything by one: if the number of lines
+differs from the number of paths, sl says so once on standard error and shows no
+annotations for that directory at all. The whole run has a 30 second deadline.
+.B \-\-annotate-batch
+and
+.B \-\-annotate
+cannot be used together.
+.TP
+.BI \-\-annotate-match " RE"
+Only annotate entries whose name matches the regular expression
+.IR RE .
+.TP
+.BI \-\-mounts " LIST"
+Colon- or comma-separated mount points that may need to spin up
+(default
+.BR /Volumes:/run/media:/media:/mnt ).
+A symlink into one of them is shown as
+.B \-\->
+and is not stat()ed, so that a sleeping USB disk does not stall the listing.
+.SS Miscellaneous
+.TP
+.BR \-h ", " \-\-help
+Print usage and exit.
+.TP
+.BR \-V ", " \-\-version
+Print the version and exit.
+.TP
+.BI \-\-config " FILE"
+Read configuration from
+.I FILE
+instead of the default location.
+.TP
+.B \-\-no-config
+Do not read any configuration file.
+.TP
+.BI \-\-startup " FILE"
+Ignored, with a warning. This is the flag the Tcl version used to name its
+startup script; a static binary cannot run Tcl, so the equivalent settings live
+in the configuration file (see
+.BR \-\-config ).
+The flag exists so that old command lines keep working.
+.SH RULES
+The Tcl original could be extended by redefining procedures in
+.BR ~/.sl.tcl ,
+i.e. by running arbitrary code inside the listing. A static binary cannot host
+an interpreter, so the same job is done with declarative rules: any number of
+lines of the form
+.PP
+.RS 4
+.EX
+rule = \fIRE\fR -> \fIGROUP\fR
+.EE
+.RE
+.PP
+in the configuration file, or the same text with
+.BR \-\-rule " \fIRE\fR -> \fIGROUP\fR" .
+A rule says "if the name matches
+.IR RE ,
+this entry belongs to
+.IR GROUP ".
+Nobody has to fetch a fifteen-year-old
+.B ~/.sl.tcl
+from a web archive to rename a group any more.
+.SS Syntax
+The left side is a Go regular expression. It is
+.B unanchored
+(the pattern is searched for, as in
+.BR grep )
+and
+.B case-sensitive
+unless it starts with
+.BR (?i) .
+The right side is the name of a group, one of:
+.PP
+.RS 4
+.BR special ", " dir ", " build ", " app ", " dev ", " A2 ", " WWW ", " aux ,
+.BR doc ", " book ", " document ", " image ", " vector ", " audio ", " video ,
+.BR font ", " data ", " other ", " archive ", " dotfile ", " Mac ,
+.BR file ", " ignore .
+.RE
+.PP
+.B ignore
+hides the entry the way a built-in ignorable name is hidden (it comes back with
+.BR \-\-all ),
+so a rule can also be used to suppress noise. The same list is printed by an
+invalid rule:
+.BR "sl: rule ...: unknown group" .
+.SS What the pattern is matched against
+Not the raw name, but the
+.B classification name
+\(em the entry's name with a compression wrapper stripped:
+.B foo.1.gz
+is matched as
+.BR foo.1 ,
+because that is what every other name test in the program sees. The match is
+against the name only, never against the directory it lives in.
+.SS Order and precedence
+Rules are read top to bottom and the
+.B first match wins.
+A matching rule overrides everything the built-in tables decided \(em suffixes,
+exact names, README/Makefile detection, the man-page rule for
+.BR man1/foo.1 .
+The one thing a rule cannot undo is the type of an entry: a directory stays a
+directory for the purpose of what is printed, only the group label changes.
+.SS Examples
+.RS 4
+.EX
+# hide build leftovers instead of seeing them as "other"
+rule = \\.(tmp|bak|swp)$ -> ignore
+
+# my camera writes IMG_0001.JPG; the built-in table has only lowercase .jpg
+rule = ^IMG_[0-9]+\\.JPG$ -> image
+
+# treat .md as documentation
+rule = \\.(md|rst)$ -> doc
+
+# everything under this name is a project file
+rule = (?i)^(makefile|cmakelists\\.txt)$ -> build
+
+# MusicBrainz sidecars
+rule = \\.(m3u|m3u8)$ -> audio
+.EE
+.RE
+.SS Errors
+A rule that does not parse, names an unknown group or contains a broken regular
+expression stops the program with a message naming the offending line, at
+startup rather than in the middle of a listing. Rules are cheap: each one is
+one compiled regular expression, matched once per entry after the built-in
+classification has run.
+.SS The old file
+.B ~/.sl.tcl
+itself is not read, and cannot be: it is Tcl code.
+.B \-\-startup
+is accepted for compatibility and prints a warning; the configuration file is
+its replacement. The rest of the original's customisation (
+.BR perfile ", " vc-* )
+has the same substitute:
+.BR \-\-annotate .
+.SH "COMPATIBILITY"
+Two rules of the original are wrong in ways that show up on a normal Unix
+system. Both are fixed by default, and both old rules are one flag away.
+.TP
+.B \-\-legacy-classify
+Classify the contents of a directory by name length instead of by type: an entry
+with no suffix is counted as a subdirectory. The original needed this because it
+did not want to
+.B stat
+thousands of entries, but on Unix a name without a suffix is usually a file
+.RB ( README ", " Makefile ", " LICENSE ),
+so the rule turned ordinary files into imaginary subdirectories. The default is
+to use the type that
+.BR readdir (3)
+already returns
+.RB ( d_type ).
+.TP
+.B \-\-legacy-series
+Accept the original's definition of a name series: two names of the same length
+that differ in any one digit or in one run of letters, so
+.B abc.txt
+and
+.B abd.txt
+collapse. The default is stricter: the names must be identical except for one
+run of digits
+.RB ( episode01 ", " episode02 )
+or for a single index letter that ends the stem
+.RB ( part\ a ", " part\ b ).
+.SH NOTATION
+Each entry is a cell: an optional indent, the name, then zero or more marks.
+.TP
+.B /
+directory
+.TP
+.B \-\->
+symbolic link pointing into another mount point (not stat()ed)
+.TP
+.B \->
+symbolic link; a broken link keeps the arrow and gets
+.B X
+.TP
+.B _
+special file: socket, FIFO, device
+.TP
+.B *
+executable file
+.TP
+.B 0
+empty file, or an empty directory
+.TP
+.B 1
+directory holding exactly one entry
+.TP
+.B <\-
+more than one hard link to this file
+.TP
+.B X
+broken link, or an abandoned editor/version-control backup
+.TP
+.B u
+setuid bit;
+.B g
+setgid bit;
+.B s
+sticky bit
+.TP
+.B W
+writable by everybody
+.TP
+.B r
+not readable by the current user
+.TP
+.B x
+directory is not searchable (no execute permission) by the current user
+.TP
+.B <2h
+modified recently; the relative form means among the most recently modified
+entries here
+.TP
+.B \-5m
+read recently
+.TP
+.B 4.2M
+relatively large
+.TP
+.B ...7
+seven consecutive names were collapsed into this line
+.SH GROUPS
+In order of appearance:
+.BR dir ,
+.BR build ,
+.BR app ,
+.BR dev ,
+.BR A2
+(Apple II disk images: .dsk .do .po .2mg .2img .shk .sdk .sea .bsq .bxy .bny .bsc
+\&.dc and, in this port, .woz .hdv .d13 .edsk .edd .nb2 .n35 .d16),
+.BR WWW ,
+.BR aux ,
+.BR doc ,
+.BR book ,
+.BR document ,
+.BR image ,
+.BR vector ,
+.BR audio ,
+.BR video ,
+.BR font ,
+.BR data ,
+.BR other ,
+.BR archive ,
+.BR dotfile ,
+.BR Mac ,
+.BR ignore .
+A file whose name ends in
+.B .nib
+is treated as an Apple II diskette only when its size is exactly 232960 bytes
+(a 35-track nibble image) or 116480 bytes (13-sector), because the same suffix
+also belongs to NeXT/Interface Builder bundles.
+.SH FILES
+.TP
+.I $XDG_CONFIG_HOME/sl/config
+User configuration. Defaults to
+.IR ~/.config/sl/config .
+It is created, fully commented out, on the first run; an existing file is never
+overwritten.
+.B \-\-no-config
+skips both reading and creating it, and
+.B \-\-config
+.I FILE
+names a file that must already exist.
+.PP
+Shell completion files are installed by the packages:
+.PP
+.RS 4
+.nf
+/usr/share/bash-completion/completions/sl
+/usr/share/zsh/site-functions/_sl
+/usr/share/fish/vendor_completions.d/sl.fish
+.fi
+.RE
+.PP
+They are generated from the option table by
+.BR "make completions" ,
+not by the program at run time, and a test compares them with that table, so
+they cannot silently fall behind.
+
+.SH CONFIGURATION
+On the first run
+.B sl
+writes a template to
+.IR ~/.config/sl/config
+in which every setting is present but commented out, together with its default;
+the file therefore changes nothing until something in it is uncommented. Delete
+it to get a fresh one at the next start.
+.PP
+The file is plain data, one
+.I key = value
+per line; a
+.B #
+starts a comment. Every long option can be used as a key, and three families are
+specific to the file:
+.PP
+.nf
+    # settings, spelled like the command line options
+    ignore = 2
+    relread = 0
+    series = 3
+    prefix = 3
+    title = on
+    ellipsis = ...
+
+    # colours: SGR attributes, without the leading ESC[
+    style.dir = 01;34
+    style.exec = 01;32
+    style.group = 01;35;4
+    style.warning = 01;31
+
+    # extra suffixes for an existing group
+    group.doc.extra = .md .rst
+    group.A2.extra = .po2
+.fi
+.PP
+Command line options override the file. Colour names may be used instead of
+numbers
+.RB ( red ", " green ", " bright-blue ", " bold ", " underline ", ...).
+.PP
+Two keys are not spelled like an option and exist only here:
+.B k
+takes the number
+.B 1000
+or
+.BR 1024 ,
+and
+.B rule
+takes a user rule (see
+.BR RULES ).
+.B rule
+may appear any number of times, and rules from the command line are matched
+before the ones from the file \(em the command line wins, as it does everywhere
+else.
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+If set, colour is disabled (unless
+.B \-\-color
+is given).
+.TP
+.B LS_COLORS
+If set, the standard keys
+.BR di ,
+.BR ln ,
+.BR ex ,
+.B and or
+.BR or ,
+as well as per-extension entries such as
+.BR *.c=01;32 ,
+override the built-in palette. Keys without a counterpart in
+.B sl
+are ignored.
+.TP
+.B COLUMNS
+Terminal width to assume when standard output is not a terminal.
+.TP
+.B XDG_CONFIG_HOME
+Configuration root; the file is read from
+.IR $XDG_CONFIG_HOME/sl/config .
+.SH EXAMPLES
+List the current directory:
+.PP
+.RS 4
+.EX
+sl
+.EE
+.RE
+.PP
+See only what changed in a big source tree, with a note on each C file:
+.PP
+.RS 4
+.EX
+sl \-\-only \-\-annotate 'git log \-1 \-\-format=%cr' \-\-annotate-match '\e.c$'
+.EE
+.RE
+.PP
+See an Apple II collection the way it was meant to be seen:
+.PP
+.RS 4
+.EX
+sl \-a \-\-title \-\-prefix 3 ~/disks/apple2
+.EE
+.RE
+.PP
+Show what a directory really contains, including the normally hidden headers,
+with a fixed width for a screenshot:
+.PP
+.RS 4
+.EX
+sl \-\-ignore 2 \-\-width 100 \-\-color /usr/include
+.EE
+.RE
+.PP
+See a directory the way the author of the original recommended (that is the
+configuration from his example startup file):
+.PP
+.RS 4
+.EX
+sl \-\-title \-\-nosfx \-\-prefix 3 \-\-k1000
+.EE
+.RE
+.SH "EXIT STATUS"
+.TP
+.B 0
+Success, even if some of the named files did not exist (they are reported on
+standard error, as
+.B ls
+does).
+.TP
+.B 1
+A command line or configuration error.
+.SH "DIFFERENCES FROM THE TCL ORIGINAL"
+The grouping rules, warning marks, relative thresholds, series collapsing and
+layout heuristics are reproduced from Thomas A. Phelps' script (v1.1.3,
+revision 1.89, February 2012). The deliberate differences are:
+.IP \(bu 2
+No Tcl interpreter: the startup file
+.I ~/.sl.tcl
+is not read, and
+.B perfile
+/
+.B vc-*
+are replaced by
+.BR \-\-annotate .
+Configuration lives in
+.IR ~/.config/sl/config .
+.IP \(bu 2
+Directory entries are sorted by name before processing, so the listing is
+deterministic. The original inherited the order from the file system, which
+means that when several entries tie on size and time, a different one may be
+picked as the \(lqrepresentative\(rq of the group.
+.IP \(bu 2
+Colours can be switched off with
+.BR \-\-no-color ,
+.B NO_COLOR
+and
+.BR LS_COLORS ,
+none of which the Tcl version had.
+.IP \(bu 2
+Character widths follow Unicode, so CJK names and emoji line up in columns;
+the original assumed one column per character.
+.IP \(bu 2
+The Apple II group knows the disk image formats invented after 2012
+.RB ( .woz ", " .hdv ", " .d13 ", " .edsk ", ...).
+.IP \(bu 2
+A directory is classified by the real type of its entries rather than by \[lq]no
+suffix means subdirectory\[rq], and a name series needs one run of digits instead
+of any single difference; see COMPATIBILITY for the two flags that restore the
+original behaviour.
+.IP \(bu 2
+Not ported: the RCS/CVS version-control marks and the trick of restoring access
+times with
+.BR touch (1).
+.SH BUGS
+The series marker
+.RB ( ...7 )
+is appended to the size/time annotation of the first member of the run, so the
+number of entries is printed where a size would be expected. Inherited from the
+original.
+.PP
+With
+.BR \-\-legacy-series
+the detection is as generous as in the original: two names that differ in a
+single letter count as a series.
+.PP
+Relative marking needs at least a few entries to be meaningful; in a directory
+of two files everything is \(lqrelatively large\(rq and nothing is.
+.SH "SEE ALSO"
+.BR ls (1),
+.BR dircolors (1),
+.BR stat (1)
+.PP
+The original: Thomas A. Phelps, \(lqsl \(em usefully organize directories and
+point out interesting files\(rq, Tcl, 2012. Its home page
+.I http://practicalthought.com/sl/
+is offline since about 2017 and is preserved at
+.IR https://web.archive.org/web/2016/http://practicalthought.com/sl/ .
+.SH AUTHORS
+This Go port: goberghen & Arena.ai agents.
+The original Tcl script: Thomas A. Phelps, Copyright (c) 2011\(en2012.
+.SH LICENSE
+GPL-3.0-or-later, as the original. No warranty.

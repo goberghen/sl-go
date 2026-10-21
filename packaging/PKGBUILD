@@ -1,0 +1,47 @@
+# Arch Linux / AUR.
+#
+#   makepkg -si
+#
+# "sl" in [community] is the steam locomotive and owns /usr/bin/sl, so this
+# package conflicts with it and replaces it; pacman asks before doing that.
+#
+# The binary is a single static Go executable: no runtime dependencies, and
+# the man page comes from the source tree rather than from a doc generator.
+
+pkgname=sl-go
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='More useful ls: group files by purpose and point out interesting ones'
+arch=('x86_64' 'aarch64')
+url='https://web.archive.org/web/2016/http://practicalthought.com/sl/'
+license=('GPL3')
+makedepends=('go')
+provides=('sl')
+conflicts=('sl')
+replaces=('sl')
+options=('!strip' '!debug')
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('@SHA256@')
+
+build() {
+	cd "$pkgname-$pkgver"
+	export CGO_ENABLED=0
+	go build -trimpath -ldflags '-s -w' -o sl ./src
+}
+
+check() {
+	cd "$pkgname-$pkgver"
+	go test ./src
+}
+
+package() {
+	cd "$pkgname-$pkgver"
+	install -Dm0755 sl "$pkgdir/usr/bin/sl"
+	install -Dm0644 docs/sl.1 "$pkgdir/usr/share/man/man1/sl.1"
+	install -Dm0644 completions/sl.bash "$pkgdir/usr/share/bash-completion/completions/sl"
+	install -Dm0644 completions/_sl "$pkgdir/usr/share/zsh/site-functions/_sl"
+	install -Dm0644 completions/sl.fish "$pkgdir/usr/share/fish/vendor_completions.d/sl.fish"
+	install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm0644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm0644 INSTALL.md "$pkgdir/usr/share/doc/$pkgname/INSTALL.md"
+}

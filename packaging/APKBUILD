@@ -1,0 +1,47 @@
+# Alpine Linux (APKBUILD).  Put the source tarball next to this file and run
+#   abuild -r
+# or add it to a private aports tree (testing/sl-go).
+#
+# Alpine's "sl" is the steam locomotive; the same binary path is used here, so
+# this package replaces it.  Go is only a build dependency: the result is a
+# static binary with no runtime dependencies at all, which is the reason a Go
+# port is a comfortable fit for Alpine.
+
+pkgname=sl-go
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc="More useful ls: group files by purpose and point out interesting ones"
+url="https://web.archive.org/web/2016/http://practicalthought.com/sl/"
+arch="all"
+license="GPL-3.0-or-later"
+makedepends="go"
+provides="sl=$pkgver-r$pkgrel"
+replaces="sl"
+subpackages=""
+source="$pkgname-$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	cd "$builddir"
+	export CGO_ENABLED=0 GOFLAGS="-trimpath"
+	go build -ldflags "-s -w" -o sl ./src
+}
+
+check() {
+	cd "$builddir"
+	go test ./src
+}
+
+package() {
+	cd "$builddir"
+	install -Dm0755 sl "$pkgdir/usr/bin/sl"
+	install -Dm0644 docs/sl.1 "$pkgdir/usr/share/man/man1/sl.1"
+	install -Dm0644 completions/sl.bash "$pkgdir/usr/share/bash-completion/completions/sl"
+	install -Dm0644 completions/_sl "$pkgdir/usr/share/zsh/site-functions/_sl"
+	install -Dm0644 completions/sl.fish "$pkgdir/usr/share/fish/vendor_completions.d/sl.fish"
+	install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm0644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm0644 INSTALL.md "$pkgdir/usr/share/doc/$pkgname/INSTALL.md"
+}
+
+sha512sums="@SHA512@  $source"

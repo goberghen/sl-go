@@ -1,0 +1,20 @@
+# go version go1.23.4 linux/amd64  2026-10-20 22:23:24 UTC
+# go test ./src -run XXX -bench 'List' -benchtime 15x -count 3
+BenchmarkListDoc-2   	      15	  12002254 ns/op	 1740919 B/op	   26042 allocs/op
+BenchmarkListDoc-2   	      15	  11739114 ns/op	 1742279 B/op	   26044 allocs/op
+BenchmarkListDoc-2   	      15	  12536550 ns/op	 1741991 B/op	   26042 allocs/op
+BenchmarkListInc-2   	      15	   3791951 ns/op	  628609 B/op	    8349 allocs/op
+BenchmarkListInc-2   	      15	   3733181 ns/op	  628863 B/op	    8351 allocs/op
+BenchmarkListInc-2   	      15	   3609100 ns/op	  628892 B/op	    8351 allocs/op
+BenchmarkListEtc-2   	      15	   1781584 ns/op	  295264 B/op	    3973 allocs/op
+BenchmarkListEtc-2   	      15	   1787769 ns/op	  294684 B/op	    3973 allocs/op
+BenchmarkListEtc-2   	      15	   1747744 ns/op	  294694 B/op	    3973 allocs/op
+BenchmarkListMan-2   	      15	   4401324 ns/op	  699024 B/op	    8711 allocs/op
+BenchmarkListMan-2   	      15	   5182093 ns/op	  700163 B/op	    8712 allocs/op
+BenchmarkListMan-2   	      15	   4417855 ns/op	  699620 B/op	    8712 allocs/op
+BenchmarkListBin-2   	      15	   7474612 ns/op	 1533628 B/op	   15788 allocs/op
+BenchmarkListBin-2   	      15	   7459841 ns/op	 1533722 B/op	   15788 allocs/op
+BenchmarkListBin-2   	      15	   8122467 ns/op	 1534388 B/op	   15789 allocs/op
+BenchmarkListLib-2   	      15	   2552322 ns/op	  419922 B/op	    5472 allocs/op
+BenchmarkListLib-2   	      15	   2566407 ns/op	  419418 B/op	    5472 allocs/op
+BenchmarkListLib-2   	      15	   2509108 ns/op	  419412 B/op	    5472 allocs/op
